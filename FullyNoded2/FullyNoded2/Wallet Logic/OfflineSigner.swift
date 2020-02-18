@@ -21,21 +21,16 @@ class OfflineSigner {
             var destinationAddresses = [Address]()
             var privKeys = [HDKey]()
             
-            let reducer = Reducer()
-            reducer.makeCommand(walletName: wallet!.name, command: .decodepsbt, param: "\"\(unsignedTx)\"") {
-                
-                if !reducer.errorBool {
-                    
-                    let decodedPSBT = reducer.dictToReturn
+            #warning("TODO: Continue refactoring")
+            TorRPC.instance.executeRPCCommand(walletName: wallet!.name, method: .decodepsbt, param: "\"\(unsignedTx)\"") { (result) in
+                switch result {
+                case .success(let response):
+                    let decodedPSBT = response as! NSDictionary
                     parseDecodedPSBT(psbt: decodedPSBT)
-                    
-                } else {
-                    
-                    print("error decoding psbt: \(reducer.errorDescription)")
+                case .failure(let error):
+                    print("Error decoding psbt: \(error)")
                     completion(nil)
-                    
                 }
-                
             }
             
             func parseDecodedPSBT(psbt: NSDictionary) {

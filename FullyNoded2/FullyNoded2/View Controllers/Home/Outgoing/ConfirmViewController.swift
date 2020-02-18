@@ -162,78 +162,50 @@ class ConfirmViewController: UIViewController, UINavigationControllerDelegate, U
         
     }
 
+    #warning("TODO: Continue refactoring")
     func executeNodeCommand(method: BTC_CLI_COMMAND, param: String) {
-        
-        let reducer = Reducer()
-        
-        func getResult() {
-            
-            if !reducer.errorBool {
-                
-                switch method {
-                    
-                case .sendrawtransaction:
-                    
-                    let result = reducer.stringToReturn
-                    
-                    DispatchQueue.main.async {
-                        
-                        UIPasteboard.general.string = result
-                        self.creatingView.removeConnectingView()
-                        self.navigationItem.title = "Sent ✓"
-                        self.playButton.tintColor = UIColor.white.withAlphaComponent(0)
-                        
-                        displayAlert(viewController: self,
-                                     isError: false,
-                                     message: "Transaction sent ✓")
-                        
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
-                            self.navigationController?.popToRootViewController(animated: true)
-                        }
-                        
-                    }
-                case .decodepsbt:
-                    
-                    let dict = reducer.dictToReturn["tx"] as! NSDictionary
-                    parseTransaction(tx: dict)
-                    
-                case .decoderawtransaction:
-                    
-                    let dict = reducer.dictToReturn
-                    
-                    // parse the inputs and outputs and display to user
-                    parseTransaction(tx: dict)
-                    
-                default:
-                    
-                    break
-                    
-                }
-                
-            } else {
-                
-                creatingView.removeConnectingView()
-                                
-                displayAlert(viewController: self,
-                             isError: true,
-                             message: reducer.errorDescription)
-                
-            }
-            
-        }
         
         getActiveWalletNow { (wallet, error) in
             
             if wallet != nil && !error {
-                
-                reducer.makeCommand(walletName: wallet!.name, command: method,
-                                    param: param,
-                                    completion: getResult)
-                
+                TorRPC.instance.executeRPCCommand(walletName: wallet!.name, method: method, param: param) { [weak self] (result) in
+                    switch result {
+                    case .success(let response):
+                        switch method {
+                        case .sendrawtransaction:
+                            let responseString = response as! String
+                            
+                            DispatchQueue.main.async {
+                                UIPasteboard.general.string = responseString
+                                self?.creatingView.removeConnectingView()
+                                self?.navigationItem.title = "Sent ✓"
+                                self?.playButton.tintColor = UIColor.white.withAlphaComponent(0)
+                                
+                                displayAlert(viewController: self!, isError: false, message: "Transaction sent ✓")
+                                
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+                                    self?.navigationController?.popToRootViewController(animated: true)
+                                }
+                            }
+                        case .decodepsbt:
+                            let responseDictionary = response as! NSDictionary
+                            let dict = responseDictionary["tx"] as! NSDictionary
+                            self?.parseTransaction(tx: dict)
+                        case .decoderawtransaction:
+                            let responseDictionary = response as! NSDictionary
+                            
+                            // parse the inputs and outputs and display to user
+                            self?.parseTransaction(tx: responseDictionary)
+                        default:
+                            break
+                        }
+                    case .failure(let error):
+                        self?.creatingView.removeConnectingView()
+                        displayAlert(viewController: self!, isError: true, message: "\(error)")
+                    }
+                }
             }
-            
         }
-        
     }
     
     func parseTransaction(tx: NSDictionary) {
@@ -412,57 +384,31 @@ class ConfirmViewController: UIViewController, UINavigationControllerDelegate, U
         self.creatingView.removeConnectingView()
     }
     
+    #warning("TODO: Continue refactoring")
     func parsePrevTx(method: BTC_CLI_COMMAND, param: String, vout: Int) {
-        
-        let reducer = Reducer()
-        
-        func getResult() {
-            
-            if !reducer.errorBool {
-                
-                switch method {
-                    
-                case .decoderawtransaction:
-                    
-                    let txDict = reducer.dictToReturn
-                    let outputs = txDict["vout"] as! NSArray
-                    parsePrevTxOutput(outputs: outputs, vout: vout)
-                    
-                case .getrawtransaction:
-                    
-                    let rawTransaction = reducer.stringToReturn
-                    
-                    parsePrevTx(method: .decoderawtransaction,
-                                param: "\"\(rawTransaction)\"",
-                                vout: vout)
-                    
-                default:
-                    
-                    break
-                    
-                }
-                
-            } else {
-                
-                creatingView.removeConnectingView()
-                displayAlert(viewController: self, isError: true, message: "Error parsing inputs")
-                
-            }
-            
-        }
-        
         getActiveWalletNow { (wallet, error) in
-            
             if wallet != nil && !error {
-                
-                reducer.makeCommand(walletName: wallet!.name, command: method,
-                                    param: param,
-                                    completion: getResult)
-                
+                TorRPC.instance.executeRPCCommand(walletName: wallet!.name, method: method, param: param) { [weak self] (result) in
+                    switch result {
+                    case .success(let response):
+                        switch method {
+                        case .decoderawtransaction:
+                            let responseDictionary = response as! NSDictionary
+                            let outputs = responseDictionary["vout"] as! NSArray
+                            self?.parsePrevTxOutput(outputs: outputs, vout: vout)
+                        case .getrawtransaction:
+                            let rawTransaction = response as! String
+                            self?.parsePrevTx(method: .decoderawtransaction, param: "\"\(rawTransaction)\"", vout: vout)
+                        default:
+                            break
+                        }
+                    case .failure:
+                        self?.creatingView.removeConnectingView()
+                        displayAlert(viewController: self!, isError: true, message: "Error parsing inputs")
+                    }
+                }
             }
-            
         }
-        
     }
     
     func numberOfSections(in tableView: UITableView) -> Int {

@@ -902,6 +902,7 @@ class WalletsViewController: UIViewController, UITableViewDelegate, UITableViewD
         
     }
     
+    #warning("TODO: Continue refactoring")
     @objc func rescan(_ sender: UIButton) {
         
         let index = Int(sender.restorationIdentifier!)!
@@ -918,99 +919,64 @@ class WalletsViewController: UIViewController, UITableViewDelegate, UITableViewD
                 
                 self.creatingView.addConnectingView(vc: self, description: "initiating rescan")
                             
-                let reducer = Reducer()
-                reducer.makeCommand(walletName: walletName, command: .rescanblockchain, param: "") {
-                    
+                TorRPC.instance.executeRPCCommand(walletName: walletName, method: .rescanblockchain, param: "") { [weak self] (result) in
                     DispatchQueue.main.async {
-                        
-                        self.creatingView.label.text = "confirming rescan status"
-                        
+                        self?.creatingView.label.text = "confirming rescan status"
                     }
-                    
-                    reducer.errorBool = false
-                    reducer.errorDescription = ""
-                    
-                    reducer.makeCommand(walletName: walletName, command: .getwalletinfo, param: "") {
-                        
-                        if !reducer.errorBool || reducer.errorDescription.description.contains("abort") {
-                            
-                            let result = reducer.dictToReturn
-                            if let scanning = result["scanning"] as? NSDictionary {
-                                
+                    TorRPC.instance.executeRPCCommand(walletName: walletName, method: .getwalletinfo, param: "") { [weak self] (result) in
+                        switch result {
+                        // TODO: Must handle condition where errorDescription.description.contains("abort"), which results to being the same as .success case
+                        case .success(let response):  // || "abort"
+                            let responseDictionary = response as! NSDictionary
+                            if let scanning = responseDictionary["scanning"] as? NSDictionary {
                                 if let _ = scanning["duration"] as? Int {
-                                    
-                                    self.creatingView.removeConnectingView()
+                                    self?.creatingView.removeConnectingView()
                                     let progress = (scanning["progress"] as! Double)
-                                    showAlert(vc: self, title: "Rescanning", message: "Wallet is rescanning with current progress: \((progress * 100).rounded())%")
-                                    
+                                    showAlert(vc: self!, title: "Rescanning", message: "Wallet is rescanning with current progress: \((progress * 100).rounded())%")
                                 }
-                                
-                            } else if (result["scanning"] as? Int) == 0 {
-                                
-                                self.creatingView.removeConnectingView()
-                                displayAlert(viewController: self, isError: true, message: "wallet not rescanning")
-                                
+                            } else if (responseDictionary["scanning"] as? Int) == 0 {
+                                self?.creatingView.removeConnectingView()
+                                displayAlert(viewController: self!, isError: true, message: "wallet not rescanning")
                             } else {
-                                
-                                self.creatingView.removeConnectingView()
-                                displayAlert(viewController: self, isError: true, message: "unable to determine if wallet is rescanning")
-                                
+                                self?.creatingView.removeConnectingView()
+                                displayAlert(viewController: self!, isError: true, message: "unable to determine if wallet is rescanning")
                             }
-                            
-                        } else {
-                            
-                            self.creatingView.removeConnectingView()
-                            displayAlert(viewController: self, isError: true, message: reducer.errorDescription)
-                            
+                        case .failure(let error):
+                            self?.creatingView.removeConnectingView()
+                            displayAlert(viewController: self!, isError: true, message: "\(error)")
                         }
-                        
                     }
-                    
                 }
-
             }))
             
             alert.addAction(UIAlertAction(title: "Check Scan Status", style: .default, handler: { action in
                 
                 self.creatingView.addConnectingView(vc: self, description: "checking scan status")
                 
-                let reducer = Reducer()
-                reducer.makeCommand(walletName: walletName, command: .getwalletinfo, param: "") {
-                    
-                    if !reducer.errorBool || reducer.errorDescription.description.contains("abort") {
-                        
-                        let result = reducer.dictToReturn
-                        if let scanning = result["scanning"] as? NSDictionary {
-                            
+                TorRPC.instance.executeRPCCommand(walletName: walletName, method: .getwalletinfo, param: "") { [weak self] (result) in
+                    switch result {
+                    // TODO: Must handle condition where errorDescription.description.contains("abort"), which results to being the same as .success case
+                    case .success(let response): // || "abort"
+                        let responseDictionary = response as! NSDictionary
+                        if let scanning = responseDictionary["scanning"] as? NSDictionary {
                             if let _ = scanning["duration"] as? Int {
-                                
-                                self.creatingView.removeConnectingView()
+                                self?.creatingView.removeConnectingView()
                                 let progress = (scanning["progress"] as! Double)
-                                showAlert(vc: self, title: "Rescanning", message: "Wallet is rescanning with current progress: \((progress * 100).rounded())%")
-                                
+                                showAlert(vc: self!, title: "Rescanning", message: "Wallet is rescanning with current progress: \((progress * 100).rounded())%")
                             }
-                            
-                        } else if (result["scanning"] as? Int) == 0 {
-                            
-                            self.creatingView.removeConnectingView()
-                            displayAlert(viewController: self, isError: true, message: "wallet not rescanning")
-                            
+                        } else if (responseDictionary["scanning"] as? Int) == 0 {
+                            self?.creatingView.removeConnectingView()
+                            displayAlert(viewController: self!, isError: true, message: "wallet not rescanning")
                         } else {
-                            
-                            self.creatingView.removeConnectingView()
-                            displayAlert(viewController: self, isError: true, message: "unable to determine if wallet is rescanning")
+                            self?.creatingView.removeConnectingView()
+                            displayAlert(viewController: self!, isError: true, message: "unable to determine if wallet is rescanning")
                             
                         }
-                        
-                    } else {
-                        
-                        self.creatingView.removeConnectingView()
-                        displayAlert(viewController: self, isError: true, message: reducer.errorDescription)
-                        
+                    case .failure(let error):
+                        self?.creatingView.removeConnectingView()
+                        displayAlert(viewController: self!, isError: true, message: "\(error)")
                     }
-                    
                 }
-                
             }))
             
             alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: { action in }))

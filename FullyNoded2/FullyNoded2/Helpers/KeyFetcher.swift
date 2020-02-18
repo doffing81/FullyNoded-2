@@ -323,72 +323,52 @@ class KeyFetcher {
             
             if wallet != nil && !error {
                 
-                let reducer = Reducer()
                 let index = wallet!.index + 1
                 let param = "\"\(wallet!.descriptor)\", [\(index),\(index)]"
                 
-                reducer.makeCommand(walletName: wallet!.name, command: .deriveaddresses, param: param) {
-                    
-                    if !reducer.errorBool {
-                        
-                        self.updateIndex(wallet: wallet!)
-                        let address = reducer.arrayToReturn[0] as! String
+                TorRPC.instance.executeRPCCommand(walletName: wallet!.name, method: .deriveaddresses, param: param) { [weak self] (result) in
+                    switch result {
+                    case .success(let response):
+                        self?.updateIndex(wallet: wallet!)
+                        let responseArray = response as! NSArray
+                        let address = responseArray[0] as! String
                         completion((address,false))
-                        
-                    } else {
-                        
-                        print("error deriving addresses: \(reducer.errorDescription)")
+                    case .failure(let error):
+                        print("Error deriving addresses: \(error)")
                         completion((nil,true))
-                        
                     }
-                    
                 }
-                
             }
-            
         }
-        
     }
-    
+    #warning("TODO: Continue refactoring")
     func musigChangeAddress(completion: @escaping ((address: String?, error: Bool)) -> Void) {
         
         getActiveWalletNow { (wallet, error) in
             
             if wallet != nil && !error {
-                
-                let reducer = Reducer()
                 let index = wallet!.index + 1000
                 
                 if wallet!.index < 1000 {
-                    
                     let param = "\"\(wallet!.descriptor)\", [\(index),\(index)]"
                     
-                    reducer.makeCommand(walletName: wallet!.name, command: .deriveaddresses, param: param) {
-                        
-                        if !reducer.errorBool {
-                            
-                            let address = reducer.arrayToReturn[0] as! String
+                    TorRPC.instance.executeRPCCommand(walletName: wallet!.name, method: .deriveaddresses, param: param) { (result) in
+                        switch result {
+                        case .success(let response):
+                            let responseArray = response as! NSArray
+                            let address = responseArray[0] as! String
                             completion((address,false))
-                            
-                        } else {
-                            
-                            print("error deriving addresses: \(reducer.errorDescription)")
+                        case .failure(let error):
+                            print("Error deriving addresses: \(error)")
                             completion((nil,true))
-                            
                         }
-                        
                     }
-                    
                 } else {
-                    
-                    print("error, need to import more keys")
-                    
+                    // FIXME: Should execute completion?
+                    print("Error, need to import more keys")
                 }
-                
             }
-            
         }
-        
     }
     
     private func updateIndex(wallet: WalletStruct) {

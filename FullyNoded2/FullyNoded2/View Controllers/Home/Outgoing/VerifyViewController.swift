@@ -23,46 +23,26 @@ class VerifyViewController: UIViewController {
         
     }
     
+    #warning("TODO: Continue refactoring")
     func getAddressInfo(address: String) {
-        
-        let reducer = Reducer()
-        
-        func getResult() {
-            
-            if !reducer.errorBool {
-                
-                let dict = reducer.dictToReturn
-                
-                DispatchQueue.main.async {
-                    
-                    self.connectingView.removeConnectingView()
-                    self.textView.text = "\(dict)"
-                    
-                }
-                
-            } else {
-                
-                self.connectingView.removeConnectingView()
-                displayAlert(viewController: self, isError: true, message: reducer.errorDescription)
-                
-            }
-            
-        }
-        
         let param = "\"\(address)\""
         
         getActiveWalletNow { (wallet, error) in
-            
             if wallet != nil && !error {
-                
-                reducer.makeCommand(walletName: wallet!.name, command: .getaddressinfo,
-                                    param: param,
-                                    completion: getResult)
-                
+                TorRPC.instance.executeRPCCommand(walletName: wallet!.name, method: .getaddressinfo, param: param) { [weak self] (result) in
+                    switch result {
+                    case .success(let response):
+                        let responseDictionary = response as! NSDictionary
+                        DispatchQueue.main.async {
+                            self?.connectingView.removeConnectingView()
+                            self?.textView.text = "\(responseDictionary)"
+                        }
+                    case .failure(let error):
+                        self?.connectingView.removeConnectingView()
+                        displayAlert(viewController: self!, isError: true, message: "\(error)")
+                    }
+                }
             }
-            
         }
-        
     }
-
 }

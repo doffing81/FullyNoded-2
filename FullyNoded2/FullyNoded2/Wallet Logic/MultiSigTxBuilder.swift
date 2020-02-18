@@ -101,64 +101,45 @@ class MultiSigTxBuilder {
                     
                 }
                 
+                #warning("TODO: Continue refactoring")
                 func decodePsbt(psbt: String) {
-                    
-                    let reducer = Reducer()
                     let param = "\"\(psbt)\""
-                    reducer.makeCommand(walletName: wallet!.name, command: .decodepsbt, param: param) {
-                        
-                        if !reducer.errorBool {
-                            
-                            let dict = reducer.dictToReturn
-                            parsePsbt(decodePsbt: dict, psbt: psbt)
-                            
-                        } else {
-                            
-                            completion((nil, nil, "Error decoding transaction: \(reducer.errorDescription)"))
-                            
-                        }
-                        
-                    }
                     
+                    TorRPC.instance.executeRPCCommand(walletName: wallet!.name, method: .decodepsbt, param: param) { (result) in
+                        switch result {
+                        case .success(let response):
+                            let responseDictionary = response as! NSDictionary
+                            parsePsbt(decodePsbt: responseDictionary, psbt: psbt)
+                        case .failure(let error):
+                            completion((nil, nil, "Error decoding transaction: \(error)"))
+                        }
+                    }
                 }
                 
                 func processPsbt(psbt: String) {
-                    
-                    let reducer = Reducer()
                     let param = "\"\(psbt)\", true, \"ALL\", true"
-                    reducer.makeCommand(walletName: wallet!.name, command: .walletprocesspsbt, param: param) {
-                        
-                        if !reducer.errorBool {
-                            
-                            let dict = reducer.dictToReturn
-                            let procccessedPsbt = dict["psbt"] as! String
+                    
+                    TorRPC.instance.executeRPCCommand(walletName: wallet!.name, method: .walletprocesspsbt, param: param) { (result) in
+                        switch result {
+                        case .success(let response):
+                            let responseDictionary = response as! NSDictionary
+                            let processedPsbt = responseDictionary["psbt"] as! String
                             
                             let descParser = DescriptorParser()
                             let descStr = descParser.descriptor(wallet!.descriptor)
                             
                             if descStr.isHot || String(data: wallet!.seed, encoding: .utf8) != "no seed" {
-                                
-                                decodePsbt(psbt: procccessedPsbt)
-                                
+                                decodePsbt(psbt: processedPsbt)
                             } else {
-                                
-                                completion((nil, procccessedPsbt, nil))
-                                
+                                completion((nil, processedPsbt, nil))
                             }
-                            
-                        } else {
-                            
-                            completion((nil, nil, "Error decoding transaction: \(reducer.errorDescription)"))
-                            
+                        case .failure(let error):
+                            completion((nil, nil, "Error decoding transaction: \(error)"))
                         }
-                        
                     }
-                    
                 }
                 
                 func createPsbt(changeAddress: String) {
-                    
-                    let reducer = Reducer()
                     let feeTarget = UserDefaults.standard.object(forKey: "feeTarget") as? Int ?? 432
                     var outputsString = outputs.description
                     outputsString = outputsString.replacingOccurrences(of: "[", with: "")
@@ -166,23 +147,16 @@ class MultiSigTxBuilder {
                     
                     let param = "''[]'', ''{\(outputsString)}'', 0, ''{\"includeWatching\": true, \"replaceable\": true, \"conf_target\": \(feeTarget), \"changeAddress\": \"\(changeAddress)\"}'', true"
                     
-                    reducer.makeCommand(walletName: wallet!.name, command: .walletcreatefundedpsbt, param: param) {
-                        
-                        if !reducer.errorBool {
-                            
-                            let psbtDict = reducer.dictToReturn
-                            let psbt = psbtDict["psbt"] as! String
+                    TorRPC.instance.executeRPCCommand(walletName: wallet!.name, method: .walletcreatefundedpsbt, param: param) { (result) in
+                        switch result {
+                        case .success(let response):
+                            let responseDictionary = response as! NSDictionary
+                            let psbt = responseDictionary["psbt"] as! String
                             processPsbt(psbt: psbt)
-                            
-                            
-                        } else {
-                            
-                            completion((nil, nil, "error creating psbt: \(reducer.errorDescription)"))
-                            
+                        case .failure(let error):
+                            completion((nil, nil, "Error creating psbt: \(error)"))
                         }
-                        
                     }
-                    
                 }
                 
                 func getChangeAddress() {

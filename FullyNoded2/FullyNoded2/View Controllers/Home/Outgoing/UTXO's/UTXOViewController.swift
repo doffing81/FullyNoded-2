@@ -713,142 +713,89 @@ class UTXOViewController: UIViewController, UITableViewDataSource, UITableViewDe
         
     }
     
+    #warning("TODO: Continue refactoring")
     func executeNodeCommand(method: BTC_CLI_COMMAND, param: String) {
-        
-        let reducer = Reducer()
-        
-        func getResult() {
-            
-            if !reducer.errorBool {
                 
-                switch method {
-                    
-                case .listlockunspent:
-                    
-                    lockedArray = reducer.arrayToReturn
-                    
-                    creatingView.removeConnectingView()
-                    
-                    DispatchQueue.main.async {
-                        
-                        self.performSegue(withIdentifier: "goToLocked", sender: self)
-                        
-                    }
-                    
-                case .lockunspent:
-                    
-                    let result = reducer.doubleToReturn
-                    removeSpinner()
-                    
-                    if result == 1 {
-                        
-                        displayAlert(viewController: self,
-                                     isError: false,
-                                     message: "UTXO is locked and will not be selected for spends unless your node restarts, tap the lock button to unlock it")
-                        
-                        self.refresh()
-                        
-                    } else {
-                        
-                        displayAlert(viewController: self,
-                                     isError: true,
-                                     message: "Unable to lock that UTXO")
-                        
-                    }
-                    
-                case .getnewaddress:
-                    
-                    let address = reducer.stringToReturn
-                    let roundedAmount = rounded(number: self.amountTotal)
-                    
-                    let spendUtxo = SendUTXO()
-                    spendUtxo.inputArray = self.inputArray
-                    spendUtxo.sweep = true
-                    spendUtxo.addressToPay = address
-                    spendUtxo.amount = roundedAmount
-                    spendUtxo.addresses = addresses
-                    
-                    func getResult() {
-                        
-                        if !spendUtxo.errorBool {
-                            
-                            let rawTx = spendUtxo.signedRawTx
-                            
-                            optimizeTheFee(raw: rawTx,
-                                           amount: roundedAmount,
-                                           addressToPay: address,
-                                           sweep: true,
-                                           inputArray: self.inputArray,
-                                           changeAddress: "",
-                                           changeAmount: 0.0)
-                            
-                        } else {
-                            
+        getActiveWalletNow { (wallet, error) in
+            if wallet != nil && !error {
+                TorRPC.instance.executeRPCCommand(walletName: wallet!.name, method: method, param: param) { [weak self] (result) in
+                    switch result {
+                    case .success(let response):
+                        switch method {
+                        case .listlockunspent:
+                            self?.lockedArray = response as! NSArray
+                            self?.creatingView.removeConnectingView()
                             DispatchQueue.main.async {
+                                self?.performSegue(withIdentifier: "goToLocked", sender: self)
+                            }
+                        case .lockunspent:
+                            let responseDouble = response as! Double
+                            self?.removeSpinner()
+                            
+                            if responseDouble == 1 {
+                                displayAlert(viewController: self!, isError: false, message: "UTXO is locked and will not be selected for spends unless your node restarts, tap the lock button to unlock it")
                                 
-                                self.amountTotal = 0.0
-                                self.utxoToSpendArray.removeAll()
-                                self.inputArray.removeAll()
-                                self.utxoTable.reloadData()
-                                
-                                self.removeSpinner()
-                                
-                                displayAlert(viewController: self,
-                                             isError: true,
-                                             message: spendUtxo.errorDescription)
-                                
+                                self?.refresh()
+                            } else {
+                                displayAlert(viewController: self!, isError: true, message: "Unable to lock that UTXO")
                             }
                             
-                        }
-                        
-                    }
-                    
-                    spendUtxo.createRawTransaction(completion: getResult)
-                    
-                case .listunspent:
-                    
-                    let resultArray = reducer.arrayToReturn
-                    parseUnspent(utxos: resultArray)
-                    
-                case .getrawchangeaddress:
-                    
-                    let changeAddress = reducer.stringToReturn
-                    self.getRawTx(changeAddress: changeAddress)
-                    
-                default:
-                    
-                    break
-                    
-                }
-                
-            } else {
-                
-                DispatchQueue.main.async {
-                    
-                    self.removeSpinner()
-                    
-                    displayAlert(viewController: self,
-                                 isError: true,
-                                 message: reducer.errorDescription)
+                        case .getnewaddress:
+                            let address = response as! String
+                            let roundedAmount = rounded(number: self!.amountTotal)
+                            
+                            let spendUtxo = SendUTXO()
+                            spendUtxo.inputArray = self!.inputArray
+                            spendUtxo.sweep = true
+                            spendUtxo.addressToPay = address
+                            spendUtxo.amount = roundedAmount
+                            spendUtxo.addresses = self!.addresses
+                            
+                            func getResult() {
+                                if !spendUtxo.errorBool {
+                                    let rawTx = spendUtxo.signedRawTx
+                                    self?.optimizeTheFee(raw: rawTx,
+                                                   amount: roundedAmount,
+                                                   addressToPay: address,
+                                                   sweep: true,
+                                                   inputArray: self!.inputArray,
+                                                   changeAddress: "",
+                                                   changeAmount: 0.0)
+                                } else {
+                                    DispatchQueue.main.async {
+                                        self?.amountTotal = 0.0
+                                        self?.utxoToSpendArray.removeAll()
+                                        self?.inputArray.removeAll()
+                                        self?.utxoTable.reloadData()
                                         
+                                        self?.removeSpinner()
+                                        
+                                        displayAlert(viewController: self!, isError: true, message: spendUtxo.errorDescription)
+                                    }
+                                }
+                            }
+                            spendUtxo.createRawTransaction(completion: getResult)
+                        case .listunspent:
+                            let resultArray = response as! NSArray
+                            self?.parseUnspent(utxos: resultArray)
+                        case .getrawchangeaddress:
+                            let changeAddress = response as! String
+                            self?.getRawTx(changeAddress: changeAddress)
+                        default:
+                            
+                            break
+                            
+                        }
+                    case .failure(let error):
+                        DispatchQueue.main.async {
+                            self?.removeSpinner()
+                            displayAlert(viewController: self!, isError: true, message: "\(error)")
+                                                
+                        }
+                    }
                 }
-                
             }
-            
         }
-        
-        getActiveWalletNow { (wallet, error) in
-            
-            if wallet != nil && !error {
-                
-                reducer.makeCommand(walletName: wallet!.name, command: method,
-                                    param: param,
-                                    completion: getResult)
-                
-            }
-            
-        }
-                
     }
     
     func removeSpinner() {

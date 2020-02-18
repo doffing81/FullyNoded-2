@@ -30,8 +30,8 @@ class SendUTXO {
     
     func createRawTransaction(completion: @escaping () -> Void) {
         
-        let reducer = Reducer()
-        
+//        let reducer = Reducer()
+        #warning("TODO: Continue refactoring")
         func getAddressInfo(addresses: [String]) {
             
             var privkeyarray = [String]()
@@ -62,38 +62,38 @@ class SendUTXO {
             
             func getinfo() {
                 
-                if !reducer.errorBool {
-                    
-                    self.index += 1
-                    let result = reducer.dictToReturn
-                    
-                    if let hdkeypath = result["hdkeypath"] as? String {
-                        
-                        let arr = hdkeypath.components(separatedBy: "/")
-                        indexarray.append(arr[1])
-                        getAddressInfo(addresses: addresses)
-                        
-                    } else {
-                        
-                        if let desc = result["desc"] as? String {
-                            
-                            let arr = desc.components(separatedBy: "/")
-                            let index = (arr[1].components(separatedBy: "]"))[0]
-                            indexarray.append(index)
-                            getAddressInfo(addresses: addresses)
-                            
-                        }
-                        
-                    }
-                        
-                } else {
-                    
-                    errorBool = true
-                    errorDescription = reducer.errorDescription
-                    completion()
-                    
-                }
-                
+//                if !reducer.errorBool {
+//
+//                    self.index += 1
+//                    let result = reducer.dictToReturn
+//
+//                    if let hdkeypath = result["hdkeypath"] as? String {
+//
+//                        let arr = hdkeypath.components(separatedBy: "/")
+//                        indexarray.append(arr[1])
+//                        getAddressInfo(addresses: addresses)
+//
+//                    } else {
+//
+//                        if let desc = result["desc"] as? String {
+//
+//                            let arr = desc.components(separatedBy: "/")
+//                            let index = (arr[1].components(separatedBy: "]"))[0]
+//                            indexarray.append(index)
+//                            getAddressInfo(addresses: addresses)
+//
+//                        }
+//
+//                    }
+//
+//                } else {
+//
+//                    errorBool = true
+//                    errorDescription = reducer.errorDescription
+//                    completion()
+//
+//                }
+//
             }
             
             if addresses.count > self.index {
@@ -162,32 +162,32 @@ class SendUTXO {
         
         func executeNodeCommand(method: BTC_CLI_COMMAND, param: String) {
             
-            func getResult() {
-                
-                if !reducer.errorBool {
-                    
-                    switch method {
-                        
-                    case .createrawtransaction:
-                        
-                        unsignedRawTx = reducer.stringToReturn
-                        getAddressInfo(addresses: addresses)
-                        
-                    default:
-                        
-                        break
-                        
-                    }
-                    
-                } else {
-                    
-                    errorBool = true
-                    errorDescription = reducer.errorDescription
-                    completion()
-                    
-                }
-                
-            }
+//            func getResult() {
+//
+//                if !reducer.errorBool {
+//
+//                    switch method {
+//
+//                    case .createrawtransaction:
+//
+//                        unsignedRawTx = reducer.stringToReturn
+//                        getAddressInfo(addresses: addresses)
+//
+//                    default:
+//
+//                        break
+//
+//                    }
+//
+//                } else {
+//
+//                    errorBool = true
+//                    errorDescription = reducer.errorDescription
+//                    completion()
+//
+//                }
+//
+//            }
             
 //            reducer.makeCommand(command: method,
 //                                param: param,

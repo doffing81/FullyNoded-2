@@ -44,153 +44,53 @@ class WalletCreator {
             
         }
         
+        #warning("TODO: Continue refactoring")
         func executeNodeCommand(method: BTC_CLI_COMMAND, param: String) {
-            
-            let reducer = Reducer()
-            
-            func getResult() {
-                
-                if !reducer.errorBool {
-                    
+            TorRPC.instance.executeRPCCommand(walletName: wallet.name, method: method, param: param) { [weak self] (result) in
+                switch result {
+                case .success(let response):
                     switch method {
-                        
-                        //                        case .getblockchaininfo:
-                        //
-                        //                            let response = reducer.dictToReturn
-                        //                            let chain = response["chain"] as! String
-                        //
-                        //                            if chain == "main" {
-                        //
-                        //                                print("main chain")
-                        //
-                        //                                var newDerivation = wallet.derivation
-                        //
-                        //                                switch wallet.derivation {
-                        //
-                        //                                case "m/84'/1'/0'/0":
-                        //
-                        //                                    newDerivation = "m/84'/0'/0'/0"
-                        //
-                        //                                case "m/44'/1'/0'/0":
-                        //
-                        //                                    newDerivation = "m/44'/0'/0'/0"
-                        //
-                        //                                case "m/49'/1'/0'/0":
-                        //
-                        //                                    newDerivation = "m/49'/0'/0'/0"
-                        //
-                        //                                default:
-                        //
-                        //                                    break
-                        //
-                        //                                }
-                        //
-                        //                                //self.statusDescription = "You can not use mainnet yet..."
-                        //                                //self.progress = 100
-                        //                                //completion((false, "mainnet is not yet allowed", nil))
-                        //
-                        //                                let cd = CoreDataService()
-                        //
-                        //                                cd.updateEntity(id: wallet.id, keyToUpdate: "derivation", newValue: newDerivation, entityName: .wallets) {
-                        //
-                        //                                    if !cd.errorBool {
-                        //
-                        //                                        print("changed derivation to mainnet")
-                        //
-                        //
-                        //                                    }
-                        //
-                        //                                }
-                        //
-                        //                            } else {
-                        //
-                        //                                print("test chain")
-                        //
-                        //
-                        //                            }
-                        
                     case .createwallet:
-                        
-                        let response = reducer.dictToReturn
-                        handleWalletCreation(response: response)
-                        
-                        //                        case .listwalletdir:
-                        //
-                        //                            let dict =  reducer.dictToReturn
-                        //                            parseWallets(walletDict: dict)
-                        
+                        let responseDictionary = response as! NSDictionary
+                        handleWalletCreation(response: responseDictionary)
                     case .importmulti:
-                        
-                        let result = reducer.arrayToReturn
-                        let success = (result[0] as! NSDictionary)["success"] as! Bool
+                        let responseArray = response as! NSArray
+                        let success = (responseArray[0] as! NSDictionary)["success"] as! Bool
                         
                         if success {
-                            
-                            if self.importingChange {
-                                
-                                self.progress = 100
-                                completion((true, nil, self.descriptor))
-                                
+                            if self!.importingChange {
+                                self?.progress = 100
+                                completion((true, nil, self!.descriptor))
                             } else {
-                                
                                 importChangeKeys()
-                                
                             }
-                            
                         } else {
-                            
-                            let errorDict = (result[0] as! NSDictionary)["error"] as! NSDictionary
+                            let errorDict = (responseArray[0] as! NSDictionary)["error"] as! NSDictionary
                             let error = errorDict["message"] as! String
                             completion((false, error, nil))
-                            
                         }
-                        
-                        if let warnings = (result[0] as! NSDictionary)["warnings"] as? NSArray {
-                            
+                        if let warnings = (responseArray[0] as! NSDictionary)["warnings"] as? NSArray {
                             if warnings.count > 0 {
-                                
                                 for warning in warnings {
-                                    
                                     let warn = warning as! String
-                                    self.errorString += warn
-                                    
+                                    self?.errorString += warn
                                 }
-                                
                             }
-                            
                         }
-                        
                     case .getdescriptorinfo:
+                        self?.progress = 60
+                        let responseDictionary = response as! NSDictionary
+                        self?.descriptor = "\"\(responseDictionary["descriptor"] as! String)\""
+                        let params = "[{ \"desc\": \(self!.descriptor), \"timestamp\": \"now\", \"range\": [0,999], \"watchonly\": true, \"label\": \"StandUp\", \"keypool\": true, \"internal\": false }]"
                         
-                        self.progress = 60
-                        let result = reducer.dictToReturn
-                        self.descriptor = "\"\(result["descriptor"] as! String)\""
-                        
-                        
-                        
-                        let params = "[{ \"desc\": \(self.descriptor), \"timestamp\": \"now\", \"range\": [0,999], \"watchonly\": true, \"label\": \"StandUp\", \"keypool\": true, \"internal\": false }]"
-                        
-                        executeNodeCommand(method: .importmulti,
-                                           param: params)
-                        
+                        executeNodeCommand(method: .importmulti, param: params)
                     default:
-                        
                         break
-                        
                     }
-                    
-                } else {
-                    
-                    completion((false,reducer.errorDescription, nil))
-                    
+                case .failure(let error):
+                    completion((false, "\(error)", nil))
                 }
-                
             }
-            
-            reducer.makeCommand(walletName: wallet.name, command: method,
-                                param: param,
-                                completion: getResult)
-            
         }
         
         func handleWalletCreation(response: NSDictionary) {

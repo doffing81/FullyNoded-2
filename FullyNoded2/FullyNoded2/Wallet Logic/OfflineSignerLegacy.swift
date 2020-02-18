@@ -18,27 +18,19 @@ class OfflineSignerLegacy {
         var inputMetaDataArray = [NSDictionary]()
         var privKeys = [HDKey]()
         
+        #warning("TODO: Continue refactoring")
         getActiveWalletNow { (wallet, error) in
-            
             if !error && wallet != nil {
-                
-                let reducer = Reducer()
-                reducer.makeCommand(walletName: wallet!.name, command: .decodepsbt, param: "\"\(unsignedTx)\"") {
-                    
-                    if !reducer.errorBool {
-                        
-                        let decodedPSBT = reducer.dictToReturn
+                TorRPC.instance.executeRPCCommand(walletName: wallet!.name, method: .decodepsbt, param: "\"\(unsignedTx)\"") { (result) in
+                    switch result {
+                    case .success(let response):
+                        let decodedPSBT = response as! NSDictionary
                         parseDecodedPSBT(psbt: decodedPSBT)
-                        
-                    } else {
-                        
-                        print("error decoding psbt: \(reducer.errorDescription)")
+                    case .failure(let error):
+                        print("Error decoding psbt: \(error)")
                         completion(nil)
-                        
                     }
-                    
                 }
-                
             }
             
             func parseDecodedPSBT(psbt: NSDictionary) {

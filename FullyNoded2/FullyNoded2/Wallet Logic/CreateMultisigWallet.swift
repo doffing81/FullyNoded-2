@@ -13,86 +13,69 @@ class CreateMultiSigWallet {
     let cd = CoreDataService()
     let enc = Encryption()
     
+    #warning("TODO: Continue refactoring")
     func create(wallet: WalletStruct, nodeXprv: String, nodeXpub: String, completion: @escaping ((Bool)) -> Void) {
-        
-        let reducer = Reducer()
-        
+                
         func importMulti(param: Any) {
         
-            reducer.makeCommand(walletName: wallet.name, command: .importmulti, param: param) {
-                
-                if !reducer.errorBool {
-                    
-                    let result = reducer.arrayToReturn
-                    let success = (result[0] as! NSDictionary)["success"] as! Bool
+            TorRPC.instance.executeRPCCommand(walletName: wallet.name, method: .importmulti, param: param) { (result) in
+                switch result {
+                case .success(let response):
+                    let responseArray = response as! NSArray
+                    let success = (responseArray[0] as! NSDictionary)["success"] as! Bool
                     
                     if success {
-                        
                         print("success")
                         completion(true)
-                        
                     } else {
-                        
-                        let errorDict = (result[0] as! NSDictionary)["error"] as! NSDictionary
+                        let errorDict = (responseArray[0] as! NSDictionary)["error"] as! NSDictionary
                         let error = errorDict["message"] as! String
-                        print("error importing multi: \(error)")
+                        print("Error importing multi: \(error)")
                         completion(false)
-                        
                     }
-                    
-                } else {
-                    
-                    print("error importmulti: \(reducer.errorDescription)")
+                case .failure(let error):
+                    print("Error importmulti: \(error)")
                     completion(false)
-                    
                 }
-                
             }
-            
         }
         
         func createWallet() {
                 
-                let reducer = Reducer()
-                let param = "\"\(wallet.name)\", false, true, \"\", true"
-                reducer.makeCommand(walletName: wallet.name, command: .createwallet, param: param) {
+            let param = "\"\(wallet.name)\", false, true, \"\", true"
+            
+            TorRPC.instance.executeRPCCommand(walletName: wallet.name, method: .createwallet, param: param) { (result) in
+                switch result {
+                case .success:
+                    let descriptorArray = (wallet.descriptor).split(separator: "#")
+                    var descriptor = "\(descriptorArray[0])"
+                    descriptor = descriptor.replacingOccurrences(of: nodeXpub, with: nodeXprv)
                     
-                    if !reducer.errorBool {
+                    TorRPC.instance.executeRPCCommand(walletName: wallet.name, method: .getdescriptorinfo, param: "\"\(descriptor)\"") { (result) in
+                        switch result {
+                        case .success(let response):
+                            let responseDictionary = response as! NSDictionary
+                            let updatedDescriptor = responseDictionary["descriptor"] as! String
+                            let checksum = responseDictionary["checksum"] as! String
+                            let array = updatedDescriptor.split(separator: "#")
+                            let hotDescriptor = "\(array[0])" + "#" + checksum
+                            var params = "[{ \"desc\": \"\(hotDescriptor)\", \"timestamp\": \"now\", \"range\": [0,1999], \"watchonly\": false, \"label\": \"StandUp\", \"keypool\": false, \"internal\": false }]"
+                            params = params.replacingOccurrences(of: nodeXpub, with: nodeXprv)
+                            importMulti(param: params)
                         
-                        let array = (wallet.descriptor).split(separator: "#")
-                        var descriptor = "\(array[0])"
-                        descriptor = descriptor.replacingOccurrences(of: nodeXpub, with: nodeXprv)
-                        
-                        reducer.makeCommand(walletName: wallet.name, command: .getdescriptorinfo, param: "\"\(descriptor)\"") {
-                            
-                            if !reducer.errorBool {
-                                
-                                let updatedDescriptor = reducer.dictToReturn["descriptor"] as! String
-                                let checksum = reducer.dictToReturn["checksum"] as! String
-                                let array = updatedDescriptor.split(separator: "#")
-                                let hotDescriptor = "\(array[0])" + "#" + checksum
-                                
-                                var params = "[{ \"desc\": \"\(hotDescriptor)\", \"timestamp\": \"now\", \"range\": [0,1999], \"watchonly\": false, \"label\": \"StandUp\", \"keypool\": false, \"internal\": false }]"
-                                params = params.replacingOccurrences(of: nodeXpub, with: nodeXprv)
-                                importMulti(param: params)
-                                
-                            }
-                            
+                        // TODO: Failure case did not previously exist. Check if necessary or warranted.
+                        case .failure:
+                            print("Error creating wallet")
+                            completion(false)
                         }
-                        
-                    } else {
-                        
-                        print("error creating wallet")
-                        completion(false)
-                        
                     }
-                    
+                case .failure:
+                    print("Error creating wallet")
+                    completion(false)
                 }
-                
             }
+        }
         
         createWallet()
-        
     }
-    
 }

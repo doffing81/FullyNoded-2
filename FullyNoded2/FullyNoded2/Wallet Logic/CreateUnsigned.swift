@@ -28,7 +28,7 @@ class CreateUnsigned {
     
     func createRawTransaction(completion: @escaping () -> Void) {
         
-        let reducer = Reducer()
+//        let reducer = Reducer()
         
         func executeNodeCommand(method: BTC_CLI_COMMAND, param: String) {
             

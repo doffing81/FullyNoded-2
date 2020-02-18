@@ -269,52 +269,33 @@ class ExportKeysViewController: UIViewController, UITableViewDelegate, UITableVi
         
     }
     
+    #warning("TODO: Continue refactoring")
      func getKeysFromBitcoinCore() {
-        
-        let reducer = Reducer()
         let param = "\"\(wallet.descriptor)\", ''[0,1999]''"
         
-        reducer.makeCommand(walletName: wallet.name, command: .deriveaddresses, param: param) {
-             
-             if !reducer.errorBool {
-                 
-                let result = reducer.arrayToReturn
-                 
-                for (i, address) in result.enumerated() {
-                    
-                    if self.wallet.type == "CUSTOM" {
-                        
-                        self.keys.append(["address":(address as! String)])
-                        
+        TorRPC.instance.executeRPCCommand(walletName: wallet.name, method: .deriveaddresses, param: param) { [weak self] (result) in
+            switch result {
+            case .success(let response):
+                let responseArray = response as! NSArray
+                for (i, address) in responseArray.enumerated() {
+                    if self?.wallet.type == "CUSTOM" {
+                        self?.keys.append(["address":(address as! String)])
                     } else {
-                        
-                        self.keys[i]["address"] = (address as! String)
-                        
+                        self?.keys[i]["address"] = (address as! String)
                     }
-                    
-                    if i + 1 == result.count {
-                        
+                    if i + 1 == responseArray.count {
                         DispatchQueue.main.async {
-                            
-                            self.fetchingAddresses = false
-                            self.table.reloadData()
-                            self.connectingView.removeConnectingView()
-                            
+                            self?.fetchingAddresses = false
+                            self?.table.reloadData()
+                            self?.connectingView.removeConnectingView()
                         }
-                        
                     }
-                    
                 }
-                                  
-             } else {
-                 
-                self.connectingView.removeConnectingView()
-                 displayAlert(viewController: self, isError: true, message: "error getting addresses from your node")
-                                  
-             }
-             
-         }
-         
+            case .failure:
+                self?.connectingView.removeConnectingView()
+                displayAlert(viewController: self!, isError: true, message: "Error getting addresses from your node")
+            }
+        }
      }
     
     func getWords() {

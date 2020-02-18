@@ -11,7 +11,6 @@ import Foundation
 class Connector {
     
     var torClient:TorClient!
-    var torRPC:MakeRPCCall!
     var torConnected:Bool!
     var errorBool:Bool!
     var errorDescription:String!
@@ -27,7 +26,6 @@ class Connector {
                 if self.torClient.isOperational {
                     print("Tor connected")
                     
-                    self.torRPC = MakeRPCCall.sharedInstance
                     self.torConnected = true
                     completion()
                     

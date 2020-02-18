@@ -10,6 +10,7 @@ import Foundation
 
 class ImportColdMultiSigDescriptor {
     
+    #warning("TODO: Continue refactoring")
     func create(descriptor: String, completion: @escaping ((success: Bool, error:Bool, errorDescription: String?)) -> Void) {
         
         let enc = Encryption()
@@ -17,7 +18,6 @@ class ImportColdMultiSigDescriptor {
             
             if node != nil && !error {
                 
-                let reducer = Reducer()
                 var newWallet = [String:Any]()
                 newWallet["birthdate"] = keyBirthday()
                 newWallet["id"] = UUID()
@@ -31,17 +31,14 @@ class ImportColdMultiSigDescriptor {
                 let str = WalletStruct(dictionary: newWallet)
                 
                 let param = "\"\(str.name)\", true, true, \"\", true"
-                
-                reducer.makeCommand(walletName: str.name, command: .createwallet, param: param) {
-                    
-                    if !reducer.errorBool {
-                        
-                        reducer.makeCommand(walletName: "", command: .getdescriptorinfo, param: "\"\(descriptor)\"") {
-                            
-                            if !reducer.errorBool {
-                                
-                                let result = reducer.dictToReturn
-                                let processedDescriptor = result["descriptor"] as! String
+                TorRPC.instance.executeRPCCommand(walletName: str.name, method: .createwallet, param: param) { (result) in
+                    switch result {
+                    case .success:
+                        TorRPC.instance.executeRPCCommand(walletName: "", method: .getdescriptorinfo, param: "\"\(descriptor)\"") { (result) in
+                            switch result {
+                            case .success(let response):
+                                let responseDictionary = response as! NSDictionary
+                                let processedDescriptor = responseDictionary["descriptor"] as! String
                                 
                                 newWallet["descriptor"] = processedDescriptor
                                 
@@ -50,82 +47,45 @@ class ImportColdMultiSigDescriptor {
                                 let descStruct = descParser.descriptor(processedDescriptor)
                                 
                                 if descStruct.isHot {
-                                    
                                     if !descStruct.isMulti {
-                                        
                                         params = "[{ \"desc\": \"\(processedDescriptor)\", \"timestamp\": \"now\", \"range\": [0,1999], \"watchonly\": false, \"label\": \"FullyNoded2\", \"keypool\": true, \"internal\": false }]"
-                                        
                                     } else {
-                                        
                                         params = "[{ \"desc\": \"\(processedDescriptor)\", \"timestamp\": \"now\", \"range\": [0,1999], \"watchonly\": false, \"label\": \"FullyNoded2\", \"keypool\": false, \"internal\": false }]"
-                                        
                                     }
-                                    
                                 } else {
-                                    
                                     if !descStruct.isMulti {
-                                        
                                         params = "[{ \"desc\": \"\(processedDescriptor)\", \"timestamp\": \"now\", \"range\": [0,1999], \"watchonly\": true, \"label\": \"FullyNoded2\", \"keypool\": false, \"internal\": false }]"
                                         
                                     } else {
-                                        
                                         params = "[{ \"desc\": \"\(processedDescriptor)\", \"timestamp\": \"now\", \"range\": [0,1999], \"watchonly\": true, \"label\": \"FullyNoded2\", \"keypool\": true, \"internal\": false }]"
-                                        
                                     }
-                                    
                                 }
-                                
-                                reducer.makeCommand(walletName: str.name, command: .importmulti, param: params) {
-                                    
-                                    if !reducer.errorBool {
-                                        
+                                TorRPC.instance.executeRPCCommand(walletName: str.name, method: .importmulti, param: params) { (result) in
+                                    switch result {
+                                    case .success:
                                         let walletSaver = WalletSaver()
                                         walletSaver.save(walletToSave: newWallet) { (success) in
-                                            
                                             if success {
-                                                
                                                 completion((true, false, nil))
-                                                
                                             } else {
-                                                
-                                                completion((false, true, "failed saving wallet locally"))
-                                                
+                                                completion((false, true, "Failed saving wallet locally"))
                                             }
-                                            
                                         }
-                                        
-                                    } else {
-                                        
-                                        completion((false, true, reducer.errorDescription))
-                                        
+                                    case .failure(let error):
+                                        completion((false, true, "\(error)"))
                                     }
-                                    
                                 }
-                                
-                            } else {
-                                
-                                completion((false, true, reducer.errorDescription))
-                                
+                            case .failure(let error):
+                                completion((false, true, "\(error)"))
                             }
-                            
                         }
-                        
-                    } else {
-                        
-                        completion((false, true, reducer.errorDescription))
-                        
+                    case .failure(let error):
+                        completion((false, true, "\(error)"))
                     }
-                    
                 }
-                
             } else {
-                
                 completion((false, true, "error getting active node"))
-                
             }
-            
         }
-        
     }
-    
 }

@@ -386,54 +386,35 @@ class InvoiceViewController: UIViewController, UITextFieldDelegate {
         
     }
     
+    #warning("TODO: Continue refactoring")
+    // TODO: Is this just a .getnewaddress function call only? If so, rename.
     func executeNodeCommand(method: BTC_CLI_COMMAND, param: String) {
         print("executeNodeCommand")
         
-        let reducer = Reducer()
-        
-        func getResult() {
-            
-            if !reducer.errorBool {
-                
+        TorRPC.instance.executeRPCCommand(walletName: wallet.name, method: method, param: param) { [weak self] (result) in
+            switch result {
+            case .success(let response):
                 switch method {
-                    
                 case .getnewaddress:
-                    
                     DispatchQueue.main.async {
-                        
-                        self.connectingView.removeConnectingView()
-                        self.initialLoad = false
-                        let address = reducer.stringToReturn
-                        self.removeLoader()
-                        self.addressString = address
-                        self.addressOutlet.text = address
-                        self.showAddress(address: address)
-                        
+                        self?.connectingView.removeConnectingView()
+                        self?.initialLoad = false
+                        let address = response as! String
+                        self?.removeLoader()
+                        self?.addressString = address
+                        self?.addressOutlet.text = address
+                        self?.showAddress(address: address)
                     }
-                    
                 default:
-                    
                     break
-                    
                 }
+            case .failure(let error):
+                self?.connectingView.removeConnectingView()
+                self?.removeLoader()
                 
-            } else {
-                
-                self.connectingView.removeConnectingView()
-                self.removeLoader()
-                
-                displayAlert(viewController: self,
-                             isError: true,
-                             message: reducer.errorDescription)
+                displayAlert(viewController: self!, isError: true, message: "\(error)")
             }
-            
         }
-        
-        reducer.makeCommand(walletName: wallet.name, command: method,
-                                    param: param,
-                                    completion: getResult)
-                            
-        
     }
     
     @objc func textFieldDidChange(_ textField: UITextField) {

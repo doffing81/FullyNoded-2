@@ -17,56 +17,37 @@ class GetPrivateKeys {
         
         func getAddressInfo(addresses: [String]) {
             
-            let reducer = Reducer()
             var privkeyarray = [String]()
             
-            func getinfo() {
-                
-                if !reducer.errorBool {
-                    
-                    self.index += 1
-                    let result = reducer.dictToReturn
-                    
-                    if let hdkeypath = result["hdkeypath"] as? String {
-                        
-                        let arr = hdkeypath.components(separatedBy: "/")
-                        indexarray.append(Int(arr[1])!)
-                        getAddressInfo(addresses: addresses)
-                        
-                    } else {
-                        
-                        if let desc = result["desc"] as? String {
-                            
-                            let arr = desc.components(separatedBy: "/")
-                            let index = (arr[1].components(separatedBy: "]"))[0]
-                            indexarray.append(Int(index)!)
-                            getAddressInfo(addresses: addresses)
-                            
-                        }
-                        
-                    }
-                        
-                } else {
-                    
-                    print("error getting key path: \(reducer.errorDescription)")
-                    completion(nil)
-                    
-                }
-                
-            }
-            
             if addresses.count > self.index {
-                
+                #warning("TODO: Continue refactoring")
                 getActiveWalletNow { (wallet, error) in
                     
                     if !error && wallet != nil {
-                        
-                        reducer.makeCommand(walletName: wallet!.name, command: .getaddressinfo, param: "\"\(addresses[self.index])\"", completion: getinfo)
-                        
+                        TorRPC.instance.executeRPCCommand(walletName: wallet!.name, method: .getaddressinfo, param: "\"\(addresses[self.index])\"") { [weak self] (result) in
+                            switch result {
+                            case .success(let response):
+                                self?.index += 1
+                                let responseDictionary = response as! NSDictionary
+                                if let hdkeypath = responseDictionary["hdkeypath"] as? String {
+                                    let arr = hdkeypath.components(separatedBy: "/")
+                                    self?.indexarray.append(Int(arr[1])!)
+                                    getAddressInfo(addresses: addresses)
+                                } else {
+                                    if let desc = responseDictionary["desc"] as? String {
+                                        let arr = desc.components(separatedBy: "/")
+                                        let index = (arr[1].components(separatedBy: "]"))[0]
+                                        self?.indexarray.append(Int(index)!)
+                                        getAddressInfo(addresses: addresses)
+                                    }
+                                }
+                            case .failure(let error):
+                                print("Error getting key path: \(error)")
+                                completion(nil)
+                            }
+                        }
                     }
-                    
                 }
-                
             } else {
                 
                 print("loop finished")

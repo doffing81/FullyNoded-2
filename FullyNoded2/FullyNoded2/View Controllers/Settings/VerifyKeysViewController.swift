@@ -245,36 +245,28 @@ class VerifyKeysViewController: UIViewController, UITableViewDelegate, UITableVi
         
     }
     
+    #warning("TODO: Continue refactoring")
     func getKeysFromBitcoinCore() {
         
         connectingView.addConnectingView(vc: self, description: "getting the addresses from your node")
         
-        let reducer = Reducer()
-        reducer.makeCommand(walletName: wallet.name, command: .deriveaddresses, param: "\"\(wallet.descriptor)\", ''[0,1999]''") {
-            
-            if !reducer.errorBool {
-                
-                let result = reducer.arrayToReturn
-                self.keys = result as! [String]
+        TorRPC.instance.executeRPCCommand(walletName: wallet.name, method: .deriveaddresses, param: "\"\(wallet.descriptor)\", ''[0,1999]''") { [weak self] (result) in
+            switch result {
+            case .success(let response):
+                let responseArray = response as! NSArray
+                self?.keys = responseArray as! [String]
                 
                 DispatchQueue.main.async {
-                    
-                    self.table.reloadData()
-                    
+                    self?.table.reloadData()
                 }
                 
-                self.connectingView.removeConnectingView()
+                self?.connectingView.removeConnectingView()
                 
-            } else {
-                
-                displayAlert(viewController: self, isError: true, message: "error getting addresses from your node")
-                
-                self.connectingView.removeConnectingView()
-                
+            case .failure:
+                displayAlert(viewController: self!, isError: true, message: "Error getting addresses from your node")
+                self?.connectingView.removeConnectingView()
             }
-            
         }
-        
     }
 
     func getKeysFromLibWally() {

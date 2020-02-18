@@ -212,26 +212,23 @@ class MultiSigDescriptorViewController: UIViewController, UINavigationController
         }
         
     }
-    
+    #warning("TODO: Continue refactoring")
     func getInfo(descriptor: String) {
         
         connectingView.addConnectingView(vc: self, description: "creating your wallets descriptor")
         
-        let reducer = Reducer()
         print("descriptor: \(descriptor)")
         
-        reducer.makeCommand(walletName: "", command: .getdescriptorinfo, param: "\"\(descriptor)\"") {
-            
+        TorRPC.instance.executeRPCCommand(walletName: "", method: .getdescriptorinfo, param: "\"\(descriptor)\"") { [weak self] (result) in
             DispatchQueue.main.async {
-                self.connectingView.label.text = "importing your descriptor to your node"
+                self?.connectingView.label.text = "importing your descriptor to your node"
             }
-            
-            if !reducer.errorBool {
+            switch result {
+            case .success(let response):
+                let responseDictionary = response as! NSDictionary
+                print("result = \(responseDictionary)")
                 
-                let result = reducer.dictToReturn
-                print("result = \(result)")
-                
-                let desc = result["descriptor"] as! String
+                let desc = responseDictionary["descriptor"] as! String
                 
                 let enc = Encryption()
                 enc.getNode { (node, error) in
@@ -241,7 +238,7 @@ class MultiSigDescriptorViewController: UIViewController, UINavigationController
                         var newWallet = [String:Any]()
                         newWallet["descriptor"] = desc
                         newWallet["derivation"] = "m/84'/1'/0'/0"
-                        newWallet["seed"] = self.localSeed
+                        newWallet["seed"] = self!.localSeed
                         newWallet["birthdate"] = keyBirthday()
                         newWallet["id"] = UUID()
                         newWallet["name"] = "\(randomString(length: 10))_StandUp"
@@ -252,56 +249,33 @@ class MultiSigDescriptorViewController: UIViewController, UINavigationController
                         
                         let multiSigCreator = CreateMultiSigWallet()
                         let wallet = WalletStruct.init(dictionary: newWallet)
-                        multiSigCreator.create(wallet: wallet, nodeXprv: self.nodesSeed, nodeXpub: self.publickeys[2]) { (success) in
-                            
+                        multiSigCreator.create(wallet: wallet, nodeXprv: self!.nodesSeed, nodeXpub: self!.publickeys[2]) { (success) in
                             if success {
-                                
                                 DispatchQueue.main.async {
-                                   self.connectingView.label.text = "saving your wallet to your device"
+                                   self?.connectingView.label.text = "saving your wallet to your device"
                                 }
-                                
                                 let walletSaver = WalletSaver()
                                 walletSaver.save(walletToSave: newWallet) { (success) in
-                                    
                                     if success {
-                                        
-                                        self.connectingView.removeConnectingView()
-                                        
+                                        self?.connectingView.removeConnectingView()
                                         DispatchQueue.main.async {
-                                            
-                                            self.onDoneBlock3!(true)
-                                            self.dismiss(animated: true, completion: nil)
-                                            
+                                            self?.onDoneBlock3!(true)
+                                            self?.dismiss(animated: true, completion: nil)
                                         }
-                                        
                                     } else {
-                                        
-                                        displayAlert(viewController: self, isError: true, message: "error saving wallet")
-                                        
+                                        displayAlert(viewController: self!, isError: true, message: "Error saving wallet")
                                     }
-                                    
                                 }
-                                
                             } else {
-                                
-                                displayAlert(viewController: self, isError: true, message: "failed creating your wallet")
-                                
+                                displayAlert(viewController: self!, isError: true, message: "Failed creating your wallet")
                             }
-                            
                         }
-                        
                     }
-                    
                 }
-                
-            } else {
-                
-                print("error: \(reducer.errorDescription)")
-                
+            case .failure(let error):
+                print("Error: \(error)")
             }
-            
         }
-        
     }
     
     private func network(path: String) -> Network {
@@ -352,15 +326,5 @@ class MultiSigDescriptorViewController: UIViewController, UINavigationController
         }
         
     }
-    
-    /*
-    // MARK: - Navigation
-
-    // In a storyboard-based application, you will often want to do a little preparation before navigation
-    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
-        // Get the new view controller using segue.destination.
-        // Pass the selected object to the new view controller.
-    }
-    */
 
 }

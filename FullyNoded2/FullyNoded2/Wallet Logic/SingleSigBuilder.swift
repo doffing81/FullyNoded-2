@@ -176,52 +176,39 @@ class SingleSigBuilder {
             
         }
         
+        #warning("TODO: Continue refactoring")
         func decodePsbt(psbt: String) {
-            
-            let reducer = Reducer()
             let param = "\"\(psbt)\""
-            reducer.makeCommand(walletName: wallet.name, command: .decodepsbt, param: param) {
-                
-                if !reducer.errorBool {
-                    
-                    let dict = reducer.dictToReturn
-                    parsePsbt(decodePsbt: dict, psbt: psbt)
-                    
-                } else {
-                    
-                    completion((nil, "Error decoding transaction: \(reducer.errorDescription)"))
-                    
-                }
-                
-            }
             
+            TorRPC.instance.executeRPCCommand(walletName: wallet.name, method: .decodepsbt, param: param) { (result) in
+                switch result {
+                case .success(let response):
+                    let responseDictionary = response as! NSDictionary
+                    parsePsbt(decodePsbt: responseDictionary, psbt: psbt)
+                case .failure(let error):
+                    completion((nil, "Error decoding transaction: \(error)"))
+                }
+            }
         }
         
         func processPsbt(psbt: String) {
-            
-            let reducer = Reducer()
             let param = "\"\(psbt)\", true, \"ALL\", true"
-            reducer.makeCommand(walletName: wallet.name, command: .walletprocesspsbt, param: param) {
-                
-                if !reducer.errorBool {
-                    
-                    let dict = reducer.dictToReturn
-                    let processedPsbt = dict["psbt"] as! String
+            
+            TorRPC.instance.executeRPCCommand(walletName: wallet.name, method: .walletprocesspsbt, param: param) { (result) in
+                switch result {
+                case .success(let response):
+                    let responseDictionary = response as! NSDictionary
+                    let processedPsbt = responseDictionary["psbt"] as! String
                     decodePsbt(psbt: processedPsbt)
                     
-                } else {
-                    
-                    completion((nil, "Error decoding transaction: \(reducer.errorDescription)"))
-                    
+                case .failure(let error):
+                    completion((nil, "Error decoding transaction: \(error)"))
                 }
-                
             }
-            
         }
         
         func createPsbt() {
 
-            let reducer = Reducer()
             let feeTarget = UserDefaults.standard.object(forKey: "feeTarget") as? Int ?? 432
             var outputsString = outputs.description
             outputsString = outputsString.replacingOccurrences(of: "[", with: "")
@@ -240,39 +227,29 @@ class SingleSigBuilder {
             }
 
             let param = "''[]'', ''{\(outputsString)}'', 0, ''{\"includeWatching\": true, \"replaceable\": true, \"conf_target\": \(feeTarget), \"change_type\": \"\(changeType)\"}'', true"
-
-            reducer.makeCommand(walletName: wallet.name, command: .walletcreatefundedpsbt, param: param) {
-
-                if !reducer.errorBool {
-
-                    let psbtDict = reducer.dictToReturn
-                    let psbt = psbtDict["psbt"] as! String
+            
+            TorRPC.instance.executeRPCCommand(walletName: wallet.name, method: .walletcreatefundedpsbt, param: param) { [weak self] (result) in
+                switch result {
+                case .success(let response):
+                    let responseDictionary = response as! NSDictionary
+                    let psbt = responseDictionary["psbt"] as! String
                     
-                    if self.wallet.type == "DEFAULT" {
+                    if self?.wallet.type == "DEFAULT" {
                         
-                        switch self.wallet.derivation {
+                        switch self?.wallet.derivation {
                         case "m/84'/1'/0'/0", "m/84'/0'/0'/0": signSegwit(psbt: psbt)
                         case "m/44'/1'/0'/0", "m/44'/0'/0'/0": signLegacy(psbt: psbt)
                         case "m/49'/1'/0'/0", "m/49'/0'/0'/0": signSegwitWrapped(psbt: psbt)
                         default:
                             break
                         }
-                        
-                    } else if self.wallet.type == "MULTI" {
-                     
+                    } else if self?.wallet.type == "MULTI" {
                         processPsbt(psbt: psbt)
-                        
                     }
-                    
-
-                } else {
-
-                    completion((nil, "Error creating psbt: \(reducer.errorDescription)"))
-
+                case .failure(let error):
+                    completion((nil, "Error creating psbt: \(error)"))
                 }
-
             }
-
         }
         
         getActiveWalletNow { (w, error) in

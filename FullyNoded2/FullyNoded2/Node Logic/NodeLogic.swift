@@ -19,147 +19,99 @@ class NodeLogic {
     var walletDisabled = Bool()
     var wallet:WalletStruct!
     
+    #warning("TODO: Continue refactoring all methods, if not the whole file.")
     func loadSectionOne(completion: @escaping () -> Void) {
-        
-        let reducer = Reducer()
-        reducer.makeCommand(walletName: "", command: .getnetworkinfo, param: "") {
-            
-            if !reducer.errorBool {
-                
-                let networkInfo = reducer.dictToReturn
-                let subversion = (networkInfo["subversion"] as! String).replacingOccurrences(of: "/", with: "")
-                self.dictToReturn["subversion"] = subversion.replacingOccurrences(of: "Satoshi:", with: "")
-                
-                let localaddresses = networkInfo["localaddresses"] as! NSArray
+        TorRPC.instance.executeRPCCommand(walletName: "", method: .getnetworkinfo, param: "") { [weak self] (result) in
+            switch result {
+            case .success(let response):
+                let responseDictionary = response as! NSDictionary
+                let subversion = (responseDictionary["subversion"] as! String).replacingOccurrences(of: "/", with: "")
+                self?.dictToReturn["subversion"] = subversion.replacingOccurrences(of: "Satoshi:", with: "")
+                let localaddresses = responseDictionary["localaddresses"] as! NSArray
                 
                 if localaddresses.count > 0 {
-                    
                     for address in localaddresses {
-                        
                         let dict = address as! NSDictionary
                         let p2pAddress = dict["address"] as! String
                         let port = dict["port"] as! Int
                         
                         if p2pAddress.contains("onion") {
-                            
-                            self.dictToReturn["p2pOnionAddress"] = p2pAddress + ":" + "\(port)"
-                            
+                            self?.dictToReturn["p2pOnionAddress"] = p2pAddress + ":" + "\(port)"
                         }
-                        
                     }
-                    
                 }
                 
-                let networks = networkInfo["networks"] as! NSArray
+                let networks = responseDictionary["networks"] as! NSArray
                 
                 for network in networks {
-                    
                     let dict = network as! NSDictionary
                     let name = dict["name"] as! String
                     
                     if name == "onion" {
-                        
                         let reachable = dict["reachable"] as! Bool
-                        self.dictToReturn["reachable"] = reachable
-                        
+                        self?.dictToReturn["reachable"] = reachable
                     }
-                    
                 }
                 
                 completion()
                 
-            } else {
-                
-                self.errorBool = true
-                self.errorDescription = "\(reducer.errorDescription)"
+            case .failure(let error):
+                self?.errorBool = true
+                self?.errorDescription = "\(error)"
                 completion()
-                
             }
-            
         }
-        
     }
     
     func loadSectionZero(completion: @escaping () -> Void) {
         print("loadSectionZero")
         
-        let reducer = Reducer()
-        
-        func getResult() {
-            
-            if !reducer.errorBool {
-                
-                switch reducer.method {
-                    
-                case BTC_CLI_COMMAND.listunspent.rawValue:
-                    
-                    let utxos = reducer.arrayToReturn
-                    parseUtxos(utxos: utxos)
-                    completion()
-                    
-                default:
-                    
-                    print("break1")
-                    break
-                    
-                }
-                
-            } else {
-                
-                errorBool = true
-                errorDescription = reducer.errorDescription
-                
-                print("errorDescription = \(errorDescription)")
-                
-                if errorDescription.contains("Requested wallet does not exist or is not loaded") {
-                    
-                    // possibly changed from mainnet to testnet or vice versa, try and load once
-                    
-                    reducer.errorDescription = ""
-                    reducer.errorBool = false
-                    errorDescription = ""
-                    errorBool = false
-                    
-                    reducer.makeCommand(walletName: wallet.name, command: .loadwallet, param: "\"\(wallet.name)\"") {
-                        
-                        if !reducer.errorBool {
-                            
-                            reducer.makeCommand(walletName: self.wallet.name, command: .listunspent,
-                                                param: "0",
-                                                completion: getResult)
-                            
-                        } else {
-                            
-                            self.errorBool = true
-                            self.errorDescription = "Wallet does not exist, maybe you changed networks? If you want to use the app on a different network please delete the app and install again"
-                            completion()
-                            
-                        }
-                        
-                    }
-                    
-                } else {
-                    
-                     completion()
-                    
-                }
-                
-            }
-            
-        }
-        
         if !walletDisabled {
-            
-            reducer.makeCommand(walletName: wallet.name, command: .listunspent,
-                                param: "0",
-                                completion: getResult)
-            
+            TorRPC.instance.executeRPCCommand(walletName: wallet.name, method: .listunspent, param: "0") { [weak self] (result) in
+                switch result {
+                case .success(let response):
+                    // NOTE: Previously had a switch statment to handle differing cases
+                    let responseArray = response as! NSArray
+                    self?.parseUtxos(utxos: responseArray)
+                    completion()
+                case .failure(let error):
+                    // TODO: Remove these two?
+                    self?.errorBool = true
+                    self?.errorDescription = "\(error)"
+                    
+                    print("errorDescription = \(self!.errorDescription)")
+                    completion() // Temporarily thrown in
+                    
+                    // FIXME: HANDLE THIS EXCEPTION
+//                    if self!.errorDescription.contains("Requested wallet does not exist or is not loaded") {
+//
+//                        // possibly changed from mainnet to testnet or vice versa, try and load once
+//
+//                        reducer.errorDescription = ""
+//                        reducer.errorBool = false
+//                        self?.errorDescription = ""
+//                        self?.errorBool = false
+//
+//                        reducer.makeCommand(walletName: wallet.name, command: .loadwallet, param: "\"\(wallet.name)\"") {
+//                            if !reducer.errorBool {
+//                                reducer.makeCommand(walletName: self.wallet.name, command: .listunspent,
+//                                                    param: "0",
+//                                                    completion: getResult)
+//                            } else {
+//                                self.errorBool = true
+//                                self.errorDescription = "Wallet does not exist, maybe you changed networks? If you want to use the app on a different network please delete the app and install again"
+//                                completion()
+//                            }
+//                        }
+//                    } else {
+//                         completion()
+//                    }
+                }
+            }
         } else {
-            
             dictToReturn["coldBalance"] = "disabled"
             dictToReturn["unconfirmedBalance"] = "disabled"
             completion()
-            
         }
         
     }
@@ -170,163 +122,92 @@ class NodeLogic {
         var walletName = ""
         
         if wallet != nil {
-            
             walletName = wallet!.name
-            
         }
         
-        let reducer = Reducer()
-        
-        func getResult() {
-            
-            if !reducer.errorBool {
-                
-                switch reducer.method {
-                    
-                case BTC_CLI_COMMAND.estimatesmartfee.rawValue:
-                    
-                    let result = reducer.dictToReturn
-                    
-                    if let feeRate = result["feerate"] as? Double {
-                        
-                        let btcperbyte = feeRate / 1000
-                        let satsperbyte = (btcperbyte * 100000000).avoidNotation
-                        dictToReturn["feeRate"] = "\(satsperbyte) s/b"
-                        
-                    } else {
-                        
-                        if let errors = result["errors"] as? NSArray {
-                            
-                            dictToReturn["feeRate"] = "\(errors[0] as! String)"
-                            
+        // Runs commands in succession
+        func runCommand(method: BTC_CLI_COMMAND, param: String) {
+            TorRPC.instance.executeRPCCommand(walletName: walletName, method: method, param: param) { [weak self] (result) in
+                switch result {
+                case .success(let response):
+                    switch method {
+                    case BTC_CLI_COMMAND.estimatesmartfee:
+                        let responseDictionary = response as! NSDictionary
+                        if let feeRate = responseDictionary["feerate"] as? Double {
+                            let btcperbyte = feeRate / 1000
+                            let satsperbyte = (btcperbyte * 100000000).avoidNotation
+                            self?.dictToReturn["feeRate"] = "\(satsperbyte) s/b"
+                        } else {
+                            if let errors = responseDictionary["errors"] as? NSArray {
+                                self?.dictToReturn["feeRate"] = "\(errors[0] as! String)"
+                            }
                         }
-                       
+                        
+                        // Last command to be run
+                        completion()
+                        
+                    case BTC_CLI_COMMAND.getmempoolinfo:
+                        let responseDictionary = response as! NSDictionary
+                        self?.dictToReturn["mempoolCount"] = responseDictionary["size"] as! Int
+                        let feeRate = UserDefaults.standard.integer(forKey: "feeTarget")
+                        
+                        runCommand(method: .estimatesmartfee, param: "\(feeRate)")
+                    case BTC_CLI_COMMAND.uptime:
+                        self?.dictToReturn["uptime"] = Int(response as! Double)
+                        
+                        runCommand(method: .getmempoolinfo, param: "")
+                    case BTC_CLI_COMMAND.getmininginfo:
+                        let miningInfo = response as! NSDictionary
+                        self?.parseMiningInfo(miningInfo: miningInfo)
+                        
+                        runCommand(method: .uptime, param: "")
+    //                case BTC_CLI_COMMAND.getnetworkinfo.rawValue:
+    //
+    //                    let networkInfo = reducer.dictToReturn
+    //                    parseNetworkInfo(networkInfo: networkInfo)
+                    case BTC_CLI_COMMAND.getpeerinfo:
+                        let peerInfo = response as! NSArray
+                        self?.parsePeerInfo(peerInfo: peerInfo)
+                        
+                        runCommand(method: .getmininginfo, param: "")
+                    case BTC_CLI_COMMAND.getblockchaininfo:
+                        let blockchainInfo = response as! NSDictionary
+                        self?.parseBlockchainInfo(blockchainInfo: blockchainInfo)
+                        
+                        runCommand(method: .getpeerinfo, param: "")
+                    default:
+                        break
                     }
-                    
+                case .failure(let error):
+                    print(error)
                     completion()
-                    
-                case BTC_CLI_COMMAND.getmempoolinfo.rawValue:
-                    
-                    let dict = reducer.dictToReturn
-                    dictToReturn["mempoolCount"] = dict["size"] as! Int
-                    let feeRate = UserDefaults.standard.integer(forKey: "feeTarget")
-                    
-                    reducer.makeCommand(walletName: walletName, command: .estimatesmartfee,
-                                        param: "\(feeRate)",
-                                        completion: getResult)
-                    
-                case BTC_CLI_COMMAND.uptime.rawValue:
-                    
-                    dictToReturn["uptime"] = Int(reducer.doubleToReturn)
-                    
-                    reducer.makeCommand(walletName: walletName, command: .getmempoolinfo,
-                                        param: "",
-                                        completion: getResult)
-                    
-                case BTC_CLI_COMMAND.getmininginfo.rawValue:
-                    
-                    let miningInfo = reducer.dictToReturn
-                    parseMiningInfo(miningInfo: miningInfo)
-                    
-                    reducer.makeCommand(walletName: walletName, command: .uptime,
-                                        param: "",
-                                        completion: getResult)
-                    
-//                case BTC_CLI_COMMAND.getnetworkinfo.rawValue:
-//
-//                    let networkInfo = reducer.dictToReturn
-//                    parseNetworkInfo(networkInfo: networkInfo)
-                    
-                    
-                    
-                case BTC_CLI_COMMAND.getpeerinfo.rawValue:
-                    
-                    let peerInfo = reducer.arrayToReturn
-                    parsePeerInfo(peerInfo: peerInfo)
-                    
-                    reducer.makeCommand(walletName: walletName, command: .getmininginfo,
-                                        param: "",
-                                        completion: getResult)
-                    
-                case BTC_CLI_COMMAND.getblockchaininfo.rawValue:
-                    
-                    let blockchainInfo = reducer.dictToReturn
-                    parseBlockchainInfo(blockchainInfo: blockchainInfo)
-                    
-                    reducer.makeCommand(walletName: walletName, command: .getpeerinfo,
-                                        param: "",
-                                        completion: getResult)
-                    
-                default:
-                    
-                    break
-                    
                 }
-                
-            } else {
-                
-                errorBool = true
-                errorDescription = reducer.errorDescription
-                completion()
-                
             }
-            
         }
         
-        reducer.makeCommand(walletName: walletName, command: .getblockchaininfo,
-                            param: "",
-                            completion: getResult)
-        
-        
-        
+        runCommand(method: .getblockchaininfo, param: "")
     }
     
+    // TODO: Determine if this needs to be a block/callback
     func loadSectionThree(completion: @escaping () -> Void) {
         print("loadSectionThree")
         
-        let reducer = Reducer()
-        
-        func getResult() {
-            
-            if !reducer.errorBool {
-                
-                switch reducer.method {
-                    
-                case BTC_CLI_COMMAND.listtransactions.rawValue:
-                    
-                    let transactions = reducer.arrayToReturn
-                    parseTransactions(transactions: transactions)
-                    completion()
-                    
-                default:
-                    
-                    break
-                    
-                }
-                
-            } else {
-                
-                errorBool = true
-                errorDescription = reducer.errorDescription
-                completion()
-                
-            }
-            
-        }
-        
         if !walletDisabled {
-            
-            reducer.makeCommand(walletName: wallet.name, command: .listtransactions,
-                                param: "\"*\", 50, 0, true",
-                                completion: getResult)
-            
+            TorRPC.instance.executeRPCCommand(walletName: wallet!.name, method: .listtransactions, param: "\"*\", 50, 0, true") { [weak self] (result) in
+                switch result {
+                case .success(let response):
+                    // NOTE: previously had a check to ensure .listtransactions was called via switch statement (unknown why), then proceed like so.
+                    let transactions = response as! NSArray
+                    self?.parseTransactions(transactions: transactions)
+                    completion()
+                case .failure:
+                    completion()
+                }
+            }
         } else {
-            
             arrayToReturn = []
             completion()
-            
         }
-        
     }
     
     // MARK: Section 0 parsers

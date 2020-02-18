@@ -583,88 +583,63 @@ class ChooseWalletFormatViewController: UIViewController {
         
     }
     
+    #warning("TODO: Continue refactoring")
     func getInfo(descriptor: String) {
         
         DispatchQueue.main.async {
-            
             self.creatingView.label.text = "creating your wallets descriptor"
-            
         }
         
-        let reducer = Reducer()
-        reducer.makeCommand(walletName: "", command: .getdescriptorinfo, param: "\"\(descriptor)\"") {
-            
+        TorRPC.instance.executeRPCCommand(walletName: "", method: .getdescriptorinfo, param: "\"\(descriptor)\"") { [weak self] (result) in
             DispatchQueue.main.async {
-                
-                self.creatingView.label.text = "importing your descriptor to your node"
-                
+                self?.creatingView.label.text = "importing your descriptor to your node"
             }
-            
-            if !reducer.errorBool {
-                
-                let result = reducer.dictToReturn
-                let desc = result["descriptor"] as! String
+            switch result {
+            case .success(let response):
+                let responseDictionary = response as! NSDictionary
+                let desc = responseDictionary["descriptor"] as! String
                 
                 let enc = Encryption()
                 enc.getNode { (node, error) in
                     
                     if !error {
                         
-                        self.newWallet["descriptor"] = desc
-                        self.newWallet["seed"] = self.localSeed
+                        self?.newWallet["descriptor"] = desc
+                        self?.newWallet["seed"] = self!.localSeed
                         
                         let multiSigCreator = CreateMultiSigWallet()
-                        let wallet = WalletStruct(dictionary: self.newWallet)
-                        multiSigCreator.create(wallet: wallet, nodeXprv: self.nodesSeed, nodeXpub: self.publickeys[2]) { (success) in
+                        let wallet = WalletStruct(dictionary: self!.newWallet)
+                        multiSigCreator.create(wallet: wallet, nodeXprv: self!.nodesSeed, nodeXpub: self!.publickeys[2]) { (success) in
                             
                             if success {
-                                
                                 DispatchQueue.main.async {
-                                   self.creatingView.label.text = "saving your wallet to your device"
+                                   self?.creatingView.label.text = "Saving your wallet to your device"
                                 }
                                 
                                 let walletSaver = WalletSaver()
-                                walletSaver.save(walletToSave: self.newWallet) { (success) in
+                                walletSaver.save(walletToSave: self!.newWallet) { (success) in
                                     
                                     if success {
-                                        
-                                        self.creatingView.removeConnectingView()
+                                        self?.creatingView.removeConnectingView()
                                         
                                         DispatchQueue.main.async {
-                                            
-                                            self.multiSigDoneBlock!((true, self.backUpRecoveryPhrase, self.descriptor))
-                                            self.dismiss(animated: true, completion: nil)
-                                            
+                                            self?.multiSigDoneBlock!((true, self!.backUpRecoveryPhrase, self!.descriptor))
+                                            self?.dismiss(animated: true, completion: nil)
                                         }
-                                        
                                     } else {
-                                        
-                                        displayAlert(viewController: self, isError: true, message: "error saving wallet")
-                                        
+                                        displayAlert(viewController: self!, isError: true, message: "Error saving wallet")
                                     }
-                                    
                                 }
-                                
                             } else {
-                                
-                                displayAlert(viewController: self, isError: true, message: "failed creating your wallet")
-                                
+                                displayAlert(viewController: self!, isError: true, message: "Failed creating your wallet")
                             }
-                            
                         }
-                        
                     }
-                    
                 }
-                
-            } else {
-                
-                print("error: \(reducer.errorDescription)")
-                
+            case .failure(let error):
+                print("error: \(error)")
             }
-            
         }
-        
     }
     
     private func network(path: String) -> Network {

@@ -22,48 +22,25 @@ class WalletInfoViewController: UIViewController {
         
     }
     
+    #warning("TODO: Continue refactoring")
     func getWalletInfo() {
         
         getActiveWalletNow { (wallet, error) in
-            
             if !error && wallet != nil {
-                
-                let reducer = Reducer()
-                reducer.makeCommand(walletName: wallet!.name, command: .getwalletinfo, param: "") {
-                    
-                    if !reducer.errorBool {
-                        
+                TorRPC.instance.executeRPCCommand(walletName: wallet!.name, method: .getwalletinfo, param: "") { [weak self] (result) in
+                    switch result {
+                    case .success(let response):
                         DispatchQueue.main.async {
-                            
-                            self.textView.text = "\(reducer.dictToReturn)"
-                            self.connectingView.removeConnectingView()
-                            
+                            let responseDictionary = response as! NSDictionary
+                            self?.textView.text = "\(responseDictionary)"
+                            self?.connectingView.removeConnectingView()
                         }
-                        
-                    } else {
-                                        
-                        self.connectingView.removeConnectingView()
-                        displayAlert(viewController: self, isError: true, message: reducer.errorDescription)
-                        
+                    case .failure(let error):
+                        self?.connectingView.removeConnectingView()
+                        displayAlert(viewController: self!, isError: true, message: "\(error)")
                     }
-                    
                 }
-                
             }
-            
         }
-        
     }
-    
-
-    /*
-    // MARK: - Navigation
-
-    // In a storyboard-based application, you will often want to do a little preparation before navigation
-    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
-        // Get the new view controller using segue.destination.
-        // Pass the selected object to the new view controller.
-    }
-    */
-
 }

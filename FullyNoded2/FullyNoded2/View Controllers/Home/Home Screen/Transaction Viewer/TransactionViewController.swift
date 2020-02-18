@@ -40,57 +40,32 @@ class TransactionViewController: UIViewController {
         
     }
 
+    #warning("TODO: Continue refactoring")
+    // TODO: Rename for specific command
     func executeNodeCommand(method: BTC_CLI_COMMAND, param: String) {
         
-        let reducer = Reducer()
-        
-        func getResult() {
-            
-            if !reducer.errorBool {
-                
-                switch method {
-                    
-                case BTC_CLI_COMMAND.gettransaction:
-                    
-                    let dict = reducer.dictToReturn
-                    
-                    DispatchQueue.main.async {
-                        
-                        self.textView.text = "\(dict)"
-                        self.creatingView.removeConnectingView()
-                        
-                    }
-                    
-                default:
-                    
-                    break
-                    
-                }
-                
-            } else {
-                
-                creatingView.removeConnectingView()
-                
-                displayAlert(viewController: self,
-                             isError: true,
-                             message: reducer.errorDescription)
-                
-            }
-            
-        }
-        
         getActiveWalletNow { (wallet, error) in
-            
             if wallet != nil && !error {
-                
-                reducer.makeCommand(walletName: wallet!.name, command: method,
-                                    param: param,
-                                    completion: getResult)
-                
+                TorRPC.instance.executeRPCCommand(walletName: wallet!.name, method: method, param: param) { [weak self] (result) in
+                    switch result {
+                    case .success(let response):
+                        switch method {
+                        case BTC_CLI_COMMAND.gettransaction:
+                            let responseDictionary = response as! NSDictionary
+                            DispatchQueue.main.async {
+                                self?.textView.text = "\(responseDictionary)"
+                                self?.creatingView.removeConnectingView()
+                            }
+                        default:
+                            break
+                        }
+                    case .failure(let error):
+                        self?.creatingView.removeConnectingView()
+                        
+                        displayAlert(viewController: self!, isError: true, message: "\(error)")
+                    }
+                }
             }
-            
         }
-        
     }
-
 }
