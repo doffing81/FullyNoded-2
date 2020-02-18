@@ -106,6 +106,73 @@ class Encryption {
 //
 //    }
     
+    #warning("TODO: Continue refactoring")
+    func getNode() throws -> NodeStruct? {
+        enum NodeError: Error { case failedToGetNode(description: String) }
+        
+        if #available(iOS 13.0, *) {
+            if let key = keychain.getData("privateKey") {
+                // TODO: Unsure whether these variables are captured in the retrieveEntity block, or if they are a memory leak.
+                let pk = SymmetricKey(data: key)
+                let cd = CoreDataService()
+                var localErrorDescription = ""
+                var nodeStruct: NodeStruct?
+                
+                cd.retrieveEntity(entityName: .nodes) { (nodes, errorDescription) in
+                    if errorDescription == nil {
+                        if nodes!.count > 0 {
+                            for node in nodes! {
+                                if (node["isActive"] as! Bool) {
+                                    var decryptedNode = node
+                                    var loopCount = 0
+                                    for (k, value) in node {
+                                        if k != "isActive" && k != "id" && k != "network" {
+                                            loopCount += 1
+                                            let dataToDecrypt = value as! Data
+                                            do {
+                                                let box = try ChaChaPoly.SealedBox.init(combined: dataToDecrypt)
+                                                let decryptedData = try ChaChaPoly.open(box, using: pk)
+                                                if let decryptedValue = String(data: decryptedData, encoding: .utf8) {
+                                                    decryptedNode[k] = decryptedValue
+                                                    if loopCount == 4 {
+                                                        // we know there will be 7 keys, so can check the loop has finished here
+                                                        nodeStruct = NodeStruct.init(dictionary: decryptedNode)
+                                                    }
+                                                } else {
+                                                    localErrorDescription = ""
+                                                }
+                                            } catch {
+                                                print("error decrypting node")
+                                                localErrorDescription = "error decrypting node"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            print("no nodes")
+                            localErrorDescription = "no nodes"
+                        }
+                    } else {
+                        print("error getting nodes: \(errorDescription!)")
+                        localErrorDescription = "error getting nodes: \(errorDescription!)"
+                    }
+                }
+                if nodeStruct != nil {
+                    return nodeStruct
+                } else {
+                    throw NodeError.failedToGetNode(description: localErrorDescription)
+                }
+            } else {
+                print("private key not accessible")
+                throw NodeError.failedToGetNode(description: "private key not accessible")
+            }
+        } else {
+            throw NodeError.failedToGetNode(description: "Unknown Error")
+        }
+    }
+    
+    // TODO: Get rid of this altogether, replaced by getNode() throws -> NodeStruct?
     func getNode(completion: @escaping ((node: NodeStruct?, error: Bool)) -> Void) {
         
         if #available(iOS 13.0, *) {
